@@ -10,3 +10,4 @@ void delete_text(int lines_count) {
         std::cout << "\033[A\033[2K" << std::flush;
     }
 }
+

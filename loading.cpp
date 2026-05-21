@@ -1,3 +1,4 @@
+#include <thread>
 #include "functions.hpp"
 
 void loading(){
@@ -27,10 +28,10 @@ void loading(){
     current_camera_time = camera_time_per_night;
     current_ventilation_time = ventilation_time_per_night;
 
-    //устанавливаем время и длину часа
+    //устанавливаем время и длину часа (в секундах)
     hour = 0;
-    if (night == 1) hour_lenght = 40000;
-    else hour_lenght = 60000;
+    if (night == 1) hour_lenght = 40;
+    else hour_lenght = 60;
     if (fast_nights) hour_lenght /= 2;
 
     //устанавливаем камеру, положение игрока в офисе время, длину часа
@@ -40,8 +41,16 @@ void loading(){
     vent_cams = false;
     cameras_open = false;
     maintenance_panel_opened = false;
+    DoorIsClosed = false;
 
     std::cout << "\033[2J\033[H" << std::flush;
+    std::cout << night << " ночь." << std::endl;
+    game_running = true;
 
-    start_night();
+    std::cout << "\033[H";
+    indent(2);
+
+    if (tester_console) indent(22);
+
+    office_position();
 }

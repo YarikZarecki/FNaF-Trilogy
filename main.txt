@@ -1,0 +1,733 @@
+# Название итогового исполняемого файла
+TARGET = fnaf_game
+
+# Компилятор
+CXX = g++
+
+# Флаги компиляции (C++17 для поддержки inline переменных в hpp)
+CXXFLAGS = -std=c++17 -Wall
+
+# Список всех .cpp файлов в текущей директории
+SRCS = $(wildcard *.cpp)
+
+# Список объектных файлов (из .cpp делаем .o)
+OBJS = $(SRCS:.cpp=.o)
+
+# Заголовочные файлы (для отслеживания изменений)
+DEPS = functions.hpp
+
+# Правило по умолчанию (первое в списке)
+all: $(TARGET)
+
+# Сборка исполняемого файла из объектных
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(TARGET)
+
+# Правило для компиляции каждого .cpp в .o
+# Зависит от DEPS, чтобы пересобирать при изменении hpp
+%.o: %.cpp $(DEPS)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Очистка временных файлов
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+# Команда для запуска (удобства ради)
+run: all
+	./$(TARGET)
+
+.PHONY: all clean run#pragma once
+#include <iostream>
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <vector>
+
+extern std::atomic<bool> game_running;
+extern std::atomic<int> move_counter;
+extern std::atomic<int> hour;
+
+inline auto start_time = std::chrono::steady_clock::now();
+inline auto current_time = std::chrono::steady_clock::now();
+inline auto elapsed = std::chrono::steady_clock::now();
+
+inline int hour_lenght;
+inline int night, springtrap_ai, springtrap_position, total_turns;
+
+inline int current_audio_uses, audio_uses_per_night;
+inline int current_camera_time, camera_time_per_night;
+inline int current_ventilation_time, ventilation_time_per_night;
+
+inline int current_cam, current_vent_cam, sealed_vent_cam;
+inline bool vent_cams; //переменная правдива если открыты камеры с 11 по 15
+
+inline bool only_office, maintenance_panel_opened, cameras_open, DoorIsClosed;
+
+inline bool repairing = false;
+
+inline int player_change;
+inline bool fast_nights, agressive, radar, no_errors;//активация читов
+void radar_text();
+
+void main_menu();
+void extra_menu();
+inline const std::vector<std::string> russian_animatronic_names = {
+        "Спрингтрап",
+        "Фантом Фредди", 
+        "Фантом Чика", 
+        "Фантом Фокси", 
+        "Фантом ББ", 
+        "Фантом Мангл", 
+        "Фантом Марионетка"
+};
+
+inline bool foxy_in_office = false;
+inline bool russian = true, english, polish;
+void print(const char* russian, const char* english, const char* polish);
+
+void camera_system();
+//функции
+int cin();
+void wrong_number();
+void wrong_letter();
+void indent(int m);
+void writing_y(bool a);
+void print_cheat(bool b);
+void cheat_menu();
+void office_position();
+void night_select();
+void loading();
+void ending_night();
+void night_begining(int number);
+
+void phanthom_jumpscare(const char* animatronic_name, bool phanthom_in_office);
+
+inline bool tester_console;
+void tester();
+
+void phanthom_foxy_appear();
+//геймплейные функции
+void update();
+void delete_text(int lines_count);
+int rng(int min, int max);
+void game_timer();
+void audio_lure(int a);
+void system_repair();
+void broken_systems();
+void movement();
+void vent_move(int a, int b, int c);
+
+#include <thread>
+#include <chrono>
+#include "functions.hpp"
+
+//исправить баг, при котором использование сломанного аудио ведёт к вылету
+
+//доделал монитор починок систем
+//сделал загрузку
+
+void text_seal_vent(){
+    if (vent_cams){
+        if (sealed_vent_cam == 0) std::cout << "Вентиляция не закрыта." << std::endl;
+        else std::cout << "Вентиляция закрыта на " << sealed_vent_cam << " камере." << std::endl;
+    }
+}
+
+void camera_system(){
+    if (game_running == true){
+        foxy_in_office = false;
+        phanthom_foxy_appear();
+        cameras_open = true;
+        radar_text();
+        while (cameras_open){
+            if (current_audio_uses == 0 || current_camera_time == 0 || current_ventilation_time == 0)
+            broken_systems();//вывод поломанных систем
+        
+        if (vent_cams) std::cout << current_vent_cam;
+        else if (current_cam == 18) std::cout << "1";
+        else std::cout << current_cam;
+        std::cout << " камера." << std::endl;//вывод открытой камеры
+
+        if (current_camera_time != 0 && ((springtrap_position == current_cam && !vent_cams) || (springtrap_position == current_vent_cam && vent_cams)))
+        std::cout << "Спрингтрап на камере." << std::endl;
+
+        std::cout << "Введите номер камеры, 16 для включения аудио/закрытия вентиляции, 17 для переключения уровня (аттракцион/вентиляция), любое другое число для опускания планшета";
+        indent(2);
+        int pressed_number = 0;
+        pressed_number = cin();
+
+        if (pressed_number < 11 && pressed_number > 1 && !vent_cams) current_cam = pressed_number;
+        else if (pressed_number == 1 && !vent_cams) current_cam = 18;
+        else if (pressed_number > 10 && pressed_number < 16 && vent_cams){
+            current_vent_cam = pressed_number;
+            text_seal_vent();
+        }
+
+        else if ((pressed_number < 11 && pressed_number > 0 && vent_cams)||(pressed_number > 10 && pressed_number < 16 && !vent_cams))
+        std::cout << "Не тот уровень." << std::endl;
+
+        else if (pressed_number == 16){
+            if (!vent_cams) audio_lure(current_cam);
+            else {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                sealed_vent_cam = current_vent_cam;
+                std::cout << "Вентиляция закрыта." << std::endl;
+            }
+        }
+
+        else if (pressed_number == 17) {
+            vent_cams = !vent_cams;
+            text_seal_vent();
+        }
+
+        else {
+            cameras_open = false;
+            office_position();
+        }
+
+        // std::this_thread::sleep_for(std::chrono::seconds(1));
+        // current_camera_time--;
+    }
+}
+}#include "functions.hpp"
+
+void writing_y(bool a) {
+    if (a) std::cout << "ы";
+}
+
+void print_cheat(bool b) {
+    std::cout << "Для в";
+    writing_y(b);
+    std::cout << "ключения ";
+}
+
+void cheat_menu() {
+    int cheat = 0;
+    while (cheat == 0) {
+        std::cout << "Чтобы выбрать читы, введи 1. Чтобы начать игру, введи любое другое число.";
+        indent(1);
+        cheat = cin();
+        if (cheat != 1) night_select();
+
+        while (cheat == 1) {
+            print_cheat(fast_nights);
+            std::cout << "быстрых ночей, введи 1." << std::endl;
+            print_cheat(agressive);  
+            std::cout << "агрессии, введи 2." << std::endl;
+            print_cheat(radar);
+            std::cout << "радара, введи 3." << std::endl;
+            print_cheat(no_errors);   
+            std::cout << "отсутствия ошибок, введи 4." << std::endl;
+            std::cout << "Для включения режима тестера, введи 5." << std::endl;
+            std::cout << "Для выхода из меню читов, введи любое число." << std::endl;
+
+            indent(1);
+            int activated_cheat = cin();
+
+            if (activated_cheat == 1) {
+                fast_nights = !fast_nights;
+                std::cout << "Быстрые ночи в"; writing_y(!fast_nights); std::cout << "ключены.";
+                indent(2);
+            }
+            else if (activated_cheat == 2) {
+                agressive = !agressive;
+                std::cout << "Режим агрессии в"; writing_y(!agressive); std::cout << "ключен.";
+                indent(2);
+            }
+            else if (activated_cheat == 3) {
+                radar = !radar;
+                std::cout << "Радар в"; writing_y(!radar); std::cout << "ключен.";
+                indent(2);
+            }
+            else if (activated_cheat == 4) {
+                no_errors = !no_errors;
+                std::cout << "Отсутствие ошибок в"; writing_y(!no_errors); std::cout << "ключено.";
+                indent(2);
+            }
+            else if (activated_cheat == 5) {
+                tester_console = !tester_console;
+                std::cout << "Режим тестера в"; writing_y(!tester_console); std::cout << "ключен.";
+                indent(2);
+            }
+            else cheat = 0;
+        }
+    }
+}#include "functions.hpp"
+int cin(){
+    int a;
+    std::cin >> a;
+
+    // \033[H  - возвращает курсор в левый верхний угол (1,1)
+    // \033[2B - перемещает курсор на 2 строки вниз (на начало 3-й строки)
+    // \033[J  - очищает всё от текущего положения курсора до конца экрана
+    // std::cout << "\033[H\033[25B\033[J" << std::flush;
+        // if (tester_console) std::cout << "\033[H\033[22B\033[J" << std::flush;
+    if (game_running) indent(3);
+    std::cout << "\033[H\033[J" << std::flush;
+    indent(2);
+
+    return a;
+}#include "functions.hpp"
+/**
+ * Функция удаляет указанное количество строк, начиная снизу вверх.
+ * @param lines_count — сколько строк текста нужно стереть.
+ */
+void delete_text(int lines_count) {
+    for (int i = 0; i < lines_count; ++i) {
+        // 1. Поднимаем курсор на строку вверх
+        // 2. Стираем строку целиком
+        std::cout << "\033[A\033[2K" << std::flush;
+    }
+}
+
+#include "functions.hpp"
+
+void ending_night(){
+    //Обнуляем значения ИИ Спрингтрапа, поломок и времени
+    springtrap_ai = 0;
+    springtrap_position = 0;
+    audio_uses_per_night = -1;
+    camera_time_per_night = -1;
+    ventilation_time_per_night = -1;
+    hour = 0;
+    current_cam = 2;
+    current_vent_cam = 11;
+    sealed_vent_cam = 0;
+    vent_cams = false;
+    only_office = false;
+    cameras_open = false;
+    maintenance_panel_opened = false;
+    night = 0;
+}#include "functions.hpp"
+
+void phanthom_foxy_appear(){
+    int random_number;
+    if (night == 2) random_number = 1000;
+    else if (night == 3) random_number = 50;
+    else if (night == 4) random_number = 25;
+    else if (night > 4) random_number = 10;
+    random_number = rng(1,random_number);
+    if (random_number == 1) foxy_in_office = true;
+}#include "functions.hpp"
+void indent(int m) {
+    for (int l = 0; l < m; l++) std::cout << std::endl;
+}#include "functions.hpp"
+
+void phanthom_jumpscare(const char* animatronic_name, bool phanthom_in_office){
+    std::cout << "PHANTHOM " << animatronic_name << " JUMPSCARE!!! (страшно)" << std::endl;
+    current_ventilation_time = 0;
+    phanthom_in_office = false;
+}#include "functions.hpp"
+void print(const char* rus, const char* engl, const char* pol){
+    if (russian == true) std::cout << rus;
+    else if (english == true) std::cout << engl;
+    else if (polish == true) std::cout << pol;
+}#include <thread>
+#include "functions.hpp"
+
+void loading(){
+    std::cout << "Загрузка...";
+    //устанавливаем ИИ Спрингтрапа и его позицию на камерах
+    if (night > 1 && night < 6) springtrap_ai = night;
+    else if (night == 6) springtrap_ai = 7;
+    if (springtrap_ai != 0) springtrap_position = rng(6, 10);
+
+    //устанавливаем ограничения в использовании аудио, камер и вентиляции
+    if (night > 1 && night < 6) {
+        audio_uses_per_night = 7 - night;
+        camera_time_per_night = 84 - 12 * night;
+        ventilation_time_per_night = 130 - 10 * night;
+    }
+    else if (night == 6) {
+        audio_uses_per_night = 2;
+        camera_time_per_night = 17;
+        ventilation_time_per_night = 60;
+    }
+    if (no_errors){
+        audio_uses_per_night = -1;
+        camera_time_per_night = -1;
+        ventilation_time_per_night = -1;
+    }
+    current_audio_uses = audio_uses_per_night;
+    current_camera_time = camera_time_per_night;
+    current_ventilation_time = ventilation_time_per_night;
+
+    //устанавливаем время и длину часа (в секундах)
+    hour = 0;
+    if (night == 1) hour_lenght = 40;
+    else hour_lenght = 60;
+    if (fast_nights) hour_lenght /= 2;
+
+    //устанавливаем камеру, положение игрока в офисе время, длину часа
+    current_cam = 2;
+    current_vent_cam = 11;
+    sealed_vent_cam = 0;
+    vent_cams = false;
+    cameras_open = false;
+    maintenance_panel_opened = false;
+    DoorIsClosed = false;
+
+    std::cout << "\033[2J\033[H" << std::flush;
+    std::cout << night << " ночь." << std::endl;
+    game_running = true;
+
+    std::cout << "\033[H";
+    indent(2);
+
+    if (tester_console) indent(22);
+
+    office_position();
+}#include "functions.hpp"
+
+std::atomic<bool> game_running(false);
+std::atomic<int> move_counter(0);
+std::atomic<int> hour(0);
+
+void timer_function() {
+    while(!game_running){
+        std::cout << "\033[s" << "\033[H";
+        tester();
+        std::cout << "\033[u" << std::flush;;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    auto start_time = std::chrono::steady_clock::now();
+    while (game_running) {
+        auto current_time = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+
+        // ANSI escape codes: 
+        // \033[s - сохранить позицию курсора
+        // \033[H - переместить курсор в начало (0,0)
+        // \033[K - очистить строку
+        // \033[u - вернуть курсор обратно
+        std::cout << "\033[s" << "\033[H" << std::endl;
+        std::cout << "\033[K";
+        std::cout << elapsed << " секунда, " << hour << " минута." << std::flush;
+        if (elapsed >= hour_lenght){
+            start_time = std::chrono::steady_clock::now();
+            hour++;
+        }
+        
+        movement();
+        tester();
+        std::cout << "\033[u" << std::flush;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
+
+int main(){
+    std::cout << "\033[2J\033[H" << std::flush;
+    std::thread timer_function_thread(timer_function);
+    main_menu();
+
+    if (timer_function_thread.joinable()) {
+         timer_function_thread.join();
+    }
+
+    return 0;
+}
+#include "functions.hpp"
+
+//сделать экран "Внимание, скримеры" в начале игры, вероятно, через мейн
+
+void night_begining(int number){
+//выводим ночь, время
+    std::cout << number << " ночь" << std::endl;
+    std::cout << "12 AM" << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    loading();
+}
+
+void night_select(){
+    while (night < 1 || night > 6) {
+        std::cout << "Выбери ночь от 1 до 6: ";
+        night = cin();
+        if (night < 1 || night > 6) wrong_number();
+        else break;
+    }
+    night_begining(night);
+}
+
+void main_menu(){
+    //удаляем прошлые строчки
+    std::cout << "\033[2J\033[H" << std::flush;
+    std::cout << "Чтобы начать новую игру, введи 1." << std::endl;
+    std::cout << "Чтобы продолжить игру, введи 2." << std::endl;
+    std::cout << "Чтобы начать кошмар, введи 3." << std::endl;
+    std::cout << "Чтобы открыть меню Extra, введи 4." << std::endl;
+    int number = cin();
+    std::cout << "\033[2J\033[H" << std::flush;
+    if (number == 1){
+        std::cout << "Текст газеты.";//написать текст позже
+        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::cout << "\033[A\033[2K\r";//Команда, удаляющая строку
+        night_begining(1);
+    }
+    else if (number == 2) night_select();
+    else if (number == 3) night_begining(6);
+    else if (number == 4) extra_menu();
+    else wrong_number();
+}
+#include "functions.hpp"
+
+void office_position(){
+    if (game_running == true){
+    
+    only_office = true;
+    if (springtrap_position == 1) std::cout << "Спрингтрап за окном." << std::endl;
+    if (foxy_in_office == true) std::cout << "Фантом Фокси в офисе." << std::endl;
+    while(only_office == true){
+        if (current_ventilation_time == 0) std::cout << "Вентиляция сломана." << std::endl;
+        std::cout << "Чтобы починить систему, введи 1. Чтобы открыть камеры, введи 2. Чтобы открыть/закрыть правую дверь, введи 3." << std::endl;
+        int pressed_number;
+        pressed_number = cin();
+        if (pressed_number == 1 && foxy_in_office) phanthom_jumpscare("FOXY", foxy_in_office);
+        else if (pressed_number == 1 && !foxy_in_office){
+            only_office = false;
+            system_repair();
+        }
+        else if (pressed_number == 2){
+            only_office = false;
+            camera_system();
+        }
+        else if (pressed_number == 3){
+            DoorIsClosed = !DoorIsClosed;
+            if (DoorIsClosed) std::cout << "Дверь закрыта." << std::endl;
+            else std::cout << "Дверь открыта." << std::endl;
+        }
+        else wrong_number();
+    }
+} 
+
+    // if (phantom_freddy == true) std::cout << "Фантом Фредди за окном." << std::endl;
+    // if (phantom_mangle == true) std::cout << "Фантом Мангл за окном." << std::endl;
+    // if (phantom_chica == true) std::cout << "Фантом Чика за окном." << std::endl;
+}
+#include "functions.hpp"
+
+void radar_text(){
+    if (cameras_open && radar){
+        if (springtrap_position > 1 && springtrap_position < 16)
+        std::cout << "Спрингтрап на " << springtrap_position << " камере." << std::endl;
+        else if (springtrap_position == 1) std::cout << "Спрингтрап за окном." << std::endl;
+        else if (springtrap_position == 16) std::cout << "Спрингтрап бежит." << std::endl;
+        else if (springtrap_position == 17) std::cout << "Спрингтрап за углом." << std::endl;
+        else if (springtrap_position == 18) std::cout << "Спрингтрап на 1 камере." << std::endl;
+        else if (springtrap_position == 19) std::cout << "Спрингтрап у двери." << std::endl;
+        else if (springtrap_position == 20) std::cout << "Спрингтрап с правой стороны офиса." << std::endl;
+    }
+}
+#include "functions.hpp"
+#include <random>
+
+int rng(int min, int max){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    // Определяем диапазон [целые числа от 1 до 100 включительно]
+    std::uniform_int_distribution<> dist(min, max);
+    return dist(gen);
+}
+#include "functions.hpp"
+//позиция Спрингтрапа вдалеке офиса - камеры от 2 до 15.
+//позиция 0 - сон, позиция 1 - за окном, позиция 16 - бег, позиция 17 - за углом,
+//позиция 18 - камера 01, позиция 19 - у двери, позиция 20 - с правой стороны офиса, позиция 21 - скример.
+
+void move(int a){
+    if (cameras_open && current_camera_time != 0)
+        if (((current_cam == springtrap_position || current_cam == a) && !vent_cams) || ((current_vent_cam == springtrap_position || current_vent_cam == a) && vent_cams))
+        std::cout << "Перемещение." << std::endl;
+    springtrap_position = a;
+    radar_text();
+}
+
+void opportunities(int current_pos, int opt1, int opt2, int opt3){
+    if (springtrap_position == current_pos){
+        int a = rng(1,4);
+        if (a == 1) total_turns++;
+        else if (a == 2) move(opt1);
+        else if (a == 3) move(opt2);
+        else if (a == 4){
+            if (opt3 != 0) move(opt3);
+            else {
+                int b = rng(0, 1);
+                if (current_pos == 5){
+                    if (b == 0) move(4);
+                    else move(13);
+                }
+                else if (current_pos == 2){
+                    if (!DoorIsClosed) move(20);
+                    else {
+                    if (b == 0) move(1);
+                    else move(15);
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+void vent_move(int a, int b, int c){
+    if (springtrap_position == a){
+        if (a == sealed_vent_cam) move(b);
+        else move(c);
+    }
+}
+
+void movement(){
+    if (springtrap_ai != 0){
+        if (move_counter > 10 - springtrap_ai + rng(0,14) - total_turns){
+            opportunities(10, 9, 9, 14);
+            opportunities(9, 10, 8, 11);
+            opportunities(8, 9, 7, 5);
+            opportunities(7, 8, 6, 12);
+            opportunities(6, 7, 5, 5);
+            opportunities(5, 6, 2, 0);
+            opportunities(4, 2, 3, 3);
+            opportunities(3, 4, 1, 1);
+            opportunities(2, 5, 4, 0);
+            opportunities(16, 16, 17, 17);
+            opportunities(17, 18, 19, 19);
+            opportunities(18, 17, 19, 19);
+            vent_move(11, 9, 17);
+            vent_move(12, 7, 17);
+            vent_move(13, 5, 1);
+            vent_move(14, 10, 20);
+            vent_move(15, 2, 20);
+            if (cameras_open) opportunities(19, 20, 20, 20);
+            else opportunities(19, 21, 21, 21);
+            //прописать переходы на позициях 1, 2, 5, 20
+            if (springtrap_position == 1){
+                int a = rng(1,2);
+                if (a == 2){
+                    std::cout << "Спрингтрап перебегает около окна" << std::endl;
+                    move(0);
+                }
+            }
+            move_counter = 0;
+            total_turns = 0;
+        }
+    }
+}
+
+void lure_move(int a, int pos_near, int c, int d, int e){
+    if (springtrap_position == pos_near && (a == c || a == d || a == e)) move(a);
+}
+
+void audio_lure(int a){
+    int sound = rng(1,7);
+    if (current_audio_uses != 0 && sound != 1){
+        sound = rng(1,3);
+        if (sound == 1) std::cout << "Hello!" << std::endl;
+        else if (sound == 2) std::cout << "Hi!" << std::endl;
+        else if (sound == 3) std::cout << "Ha-ha-ha!" << std::endl;
+        lure_move(a, 1, 2, 2, 2);
+        lure_move(a, 2, 3, 4, 5);
+        lure_move(a, 3, 2, 4, 4);
+        lure_move(a, 4, 2, 3, 3);
+        lure_move(a, 5, 2, 6, 8);
+        lure_move(a, 6, 5, 7, 7);
+        lure_move(a, 7, 6, 8, 8);
+        lure_move(a, 8, 5, 7, 9);
+        lure_move(a, 9, 8, 10, 10);
+        lure_move(a, 10, 9, 9, 9);
+        lure_move(a, 19, 18, 18, 18);
+    }
+    if (current_audio_uses > 0) current_audio_uses--;
+}
+
+void force_move(int level, int position){
+    if (level == 2 && springtrap_position > 5 && springtrap_position < 11){
+        if (sealed_vent_cam != 14){
+            int temp_pos = rng(4,6);
+            if (temp_pos == 6) move(10);
+            else move(temp_pos);
+        }
+        else springtrap_position = rng(4,5);
+    }
+    else if (springtrap_position == 5) move(2);
+    else if (springtrap_position == 2) move(1);
+}#include "functions.hpp"
+void broken_systems(){
+    std::cout << "Сломанные системы: ";
+        if (current_audio_uses != 0 && current_camera_time != 0 && current_ventilation_time != 0) std::cout << "отсутствуют.";
+        if (current_audio_uses == 0) {
+            std::cout << "аудио";
+            if (current_camera_time != 0 && current_ventilation_time != 0) std::cout << ".";
+            else std::cout << ", ";
+        }
+        if (current_camera_time == 0) {
+            std::cout << "камеры";
+            if (current_ventilation_time !=0) std::cout << ".";
+            else std::cout << ", ";
+        }
+
+        if (current_ventilation_time == 0) {
+            std::cout << "вентиляция.";
+        }
+        indent(1);
+}
+
+
+// void qte(int minimum){
+//     int random = rng(minimum, 2*minimum);
+//     int done_tasks = 0;
+//     while (done_tasks < random){
+//         std::cout << "Нажми"
+//     }
+// }
+
+void system_repair(){
+    if (game_running == true){
+        maintenance_panel_opened = true;
+    broken_systems();
+    while (maintenance_panel_opened){
+        for(int i = 1; i <= 4; i++) {
+        std::cout << "Чтобы починить ";
+        if (i == 1) std::cout << "аудиосистему";
+        else if (i == 2) std::cout << "систему камер";
+        else if (i == 3) std::cout << "вентиляционную систему";
+        else std::cout << "всё";
+        std::cout << ", введите число " << i << ".";
+        indent(1);
+        }
+
+        std::cout << "Чтобы выйти, введите любое другое число." << std::endl;
+        int repair_number = cin();
+        if (repair_number == 1) current_audio_uses = audio_uses_per_night;
+        else if (repair_number == 2) current_camera_time = camera_time_per_night;
+        else if (repair_number == 3) current_ventilation_time = ventilation_time_per_night;
+        else if (repair_number == 4){
+            current_audio_uses = audio_uses_per_night;
+            current_camera_time = camera_time_per_night;
+            current_ventilation_time = ventilation_time_per_night;
+        }
+        else {
+            maintenance_panel_opened = false;
+            office_position();
+        }
+    }
+}
+}
+
+#include "functions.hpp"
+
+void tester(){
+    if (game_running) indent(2);
+    if (tester_console == true){
+    std::cout << "ИИ Спрингтрапа: " << springtrap_ai << std::endl;
+    std::cout << "Позиция Спрингтрапа: " << springtrap_position << std::endl;
+    indent(2);
+    }
+}
+#include "functions.hpp"
+
+void wrong_number() {
+    std::cout << "Неправильное число. Выбери снова.";
+    std::cout << "\033[A\033[2K\r";
+}
+
+void wrong_letter() {
+    std::cout << "Неправильная буква. Выбери снова.";
+    std::cout << "\033[A\033[2K\r";
+}

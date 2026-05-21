@@ -1,6 +1,4 @@
 #include "functions.hpp"
-#include <thread> // Для std::this_thread::sleep_for
-#include <chrono> // Для std::chrono::seconds
 //позиция Спрингтрапа вдалеке офиса - камеры от 2 до 15.
 //позиция 0 - сон, позиция 1 - за окном, позиция 16 - бег, позиция 17 - за углом,
 //позиция 18 - камера 01, позиция 19 - у двери, позиция 20 - с правой стороны офиса, позиция 21 - скример.
@@ -19,8 +17,25 @@ void opportunities(int current_pos, int opt1, int opt2, int opt3){
         if (a == 1) total_turns++;
         else if (a == 2) move(opt1);
         else if (a == 3) move(opt2);
-        else if (a == 4) move(opt3);
+        else if (a == 4){
+            if (opt3 != 0) move(opt3);
+            else {
+                int b = rng(0, 1);
+                if (current_pos == 5){
+                    if (b == 0) move(4);
+                    else move(13);
+                }
+                else if (current_pos == 2){
+                    if (!DoorIsClosed) move(20);
+                    else {
+                    if (b == 0) move(1);
+                    else move(15);
+                    }
+                }
+            }
+        }
     }
+
 }
 
 void vent_move(int a, int b, int c){
@@ -31,16 +46,17 @@ void vent_move(int a, int b, int c){
 }
 
 void movement(){
-    int move_counter;
-    while (springtrap_ai != 0){
+    if (springtrap_ai != 0){
         if (move_counter > 10 - springtrap_ai + rng(0,14) - total_turns){
             opportunities(10, 9, 9, 14);
             opportunities(9, 10, 8, 11);
             opportunities(8, 9, 7, 5);
             opportunities(7, 8, 6, 12);
             opportunities(6, 7, 5, 5);
+            opportunities(5, 6, 2, 0);
             opportunities(4, 2, 3, 3);
             opportunities(3, 4, 1, 1);
+            opportunities(2, 5, 4, 0);
             opportunities(16, 16, 17, 17);
             opportunities(17, 18, 19, 19);
             opportunities(18, 17, 19, 19);
@@ -62,8 +78,6 @@ void movement(){
             move_counter = 0;
             total_turns = 0;
         }
-        //move_counter++;
-        //std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 
@@ -72,9 +86,9 @@ void lure_move(int a, int pos_near, int c, int d, int e){
 }
 
 void audio_lure(int a){
-    int b = rng(1,7);
-    if (current_audio_uses != 0 && b != 1){
-        int sound = rng(1,3);
+    int sound = rng(1,7);
+    if (current_audio_uses > 0 && sound != 1){
+        sound = rng(1,3);
         if (sound == 1) std::cout << "Hello!" << std::endl;
         else if (sound == 2) std::cout << "Hi!" << std::endl;
         else if (sound == 3) std::cout << "Ha-ha-ha!" << std::endl;

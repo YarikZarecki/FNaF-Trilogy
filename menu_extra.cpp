@@ -1,5 +1,7 @@
 #include "functions.hpp"
 
+//пофиксил ошибку в меню Экстра
+
 void writing_y(bool a) {
     if (a) std::cout << "ы";
 }
@@ -55,7 +57,6 @@ void extra_menu(){
             std::cout << "радара, введи 3." << std::endl;
             print_cheat(no_errors);   
             std::cout << "отсутствия ошибок, введи 4." << std::endl;
-            std::cout << "Для включения режима тестера, введи 5." << std::endl;
             std::cout << "Чтобы выйти из меню Extra, введи Q." << std::endl;
 
             indent(1);
@@ -64,13 +65,12 @@ void extra_menu(){
 
             if (input == 'W') animatronic_names = true;
             else if (input == 'Q') break;
-            else if (input != '1' && input != '2' && input != '3' && input != '4' && input != '5') wrong_letter();
+            else if (input != '1' && input != '2' && input != '3' && input != '4' && input != '5') wrong_number();
 
             cheat_activated(input, '1', fast_nights, "Быстрые ночи в", "ключены.");
             cheat_activated(input, '2', agressive, "Режим агрессии в", "ключен.");
-            cheat_activated(input, '3', agressive, "Радар в", "ключен.");
-            cheat_activated(input, '4', agressive, "Отсутствие ошибок в", "ключено.");
-            cheat_activated(input, '5', agressive, "Режим тестера в", "ключен.");
+            cheat_activated(input, '3', radar, "Радар в", "ключен.");
+            cheat_activated(input, '4', no_errors, "Отсутствие ошибок в", "ключено.");
         }
         //удаляем прошлые строчки
         std::cout << "\033[2J\033[H" << std::flush;
